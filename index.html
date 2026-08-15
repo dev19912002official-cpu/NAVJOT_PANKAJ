@@ -353,6 +353,11 @@ h2 .accent{color:var(--gold);}
 }
 @keyframes shine{100%{left:140%;}}
 @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.015);}}
+@keyframes nudgeGlow{
+  0%,100%{box-shadow:0 12px 28px rgba(240,185,11,.32);}
+  50%{box-shadow:0 12px 40px rgba(240,185,11,.75), 0 0 0 6px rgba(240,185,11,.15);}
+}
+.btn.nudge{animation:nudgeGlow 1.1s ease-in-out 3;}
 @media(prefers-reduced-motion:reduce){
   .sticky-cta{animation:none;}
   .sticky-cta .shine{animation:none;display:none;}
@@ -445,9 +450,9 @@ src="https://www.facebook.com/tr?id=2287507388711289&ev=PageView&noscript=1"
           <div><i class="fas fa-star" style="color:var(--gold);"></i> <span>Advertised by: SRS Marketing Agency</span></div>
         </div>
 
-        <div class="timer-box">
+        <div class="timer-box" id="timerBox">
           <i class="fas fa-clock" style="color:var(--gold);"></i>
-          Redirecting in <span id="countNum">20</span>s
+          <span id="timerText">Redirecting in <span id="countNum">20</span>s</span>
         </div>
 
       </div>
@@ -495,9 +500,44 @@ document.addEventListener('DOMContentLoaded', function () {
     track.innerHTML = html;
   }
 
-  // ---- Countdown + redirect (unchanged logic) ----
+  /* ================================================================
+     CONFIG
+     ================================================================ */
   var TELEGRAM_URL = "https://t.me/+K-TZgPsf76VkNTM1";
   var COUNTDOWN_SECONDS = 20;
+  // IMPROVEMENT 2: pehle 20 sec baad SABKO force-redirect kar deta tha,
+  // chahe unhone interest dikhaya ho ya nahi. Ab default OFF hai — jo
+  // genuinely interested hai wo button dabayega. Agar phir bhi purana
+  // wala auto-redirect wapas chahiye, isko true kar do.
+  var AUTO_REDIRECT_ENABLED = false;
+
+  // IMPROVEMENT 1: engagement/bot filtering — bina isske, page load hote
+  // hi (0.1 sec mein) hua click bhi genuine "Lead" maana ja raha tha.
+  var MIN_DWELL_MS = 2000;
+  var REQUIRE_INTERACTION = true;
+  var BOT_CHECK_ENABLED = true;
+
+  var pageLoadTime = Date.now();
+  var hasScrolled = false;
+  var hasMouseMoved = false;
+  window.addEventListener('scroll', function () { hasScrolled = true; }, { once: true });
+  document.addEventListener('mousemove', function () { hasMouseMoved = true; }, { once: true });
+  document.addEventListener('touchstart', function () { hasMouseMoved = true; }, { once: true });
+
+  function isLikelyRealUser() {
+    var timeOnPage = Date.now() - pageLoadTime;
+    if (timeOnPage < MIN_DWELL_MS) return false;
+    if (REQUIRE_INTERACTION && !hasScrolled && !hasMouseMoved) return false;
+    return true;
+  }
+
+  function isProbablyBot() {
+    if (!BOT_CHECK_ENABLED) return false;
+    if (navigator.webdriver) return true;
+    if (/bot|crawl|spider|slurp|headless/i.test(navigator.userAgent)) return true;
+    return false;
+  }
+
   var hasFired = false;
   var countNum = document.getElementById('countNum');
   var countdown = null;
@@ -512,12 +552,25 @@ document.addEventListener('DOMContentLoaded', function () {
     }
     hasFired = true;
 
+    if (isRealClick && isProbablyBot()) {
+      // Bot detect hua — koi bhi tracking event fire nahi, seedha redirect
+      window.location.href = TELEGRAM_URL;
+      return;
+    }
+
     if (isRealClick && typeof fbq === 'function') {
-      fbq('track', 'Lead', {
-        value: '0.00',
-        currency: 'INR',
-        predicted_ltv: '0.00'
-      }, { eventID: 'Lead_' + Date.now() });
+      var eventId = 'Lead_' + Date.now();
+      if (isLikelyRealUser()) {
+        fbq('track', 'Lead', {
+          value: '0.00',
+          currency: 'INR',
+          predicted_ltv: '0.00'
+        }, { eventID: eventId });
+      } else {
+        // Bahut jaldi click hua, koi interaction bhi nahi — Lead data
+        // clean rakhne ke liye alag custom event mein daal do
+        fbq('trackCustom', 'LowQualityClick', { eventID: eventId });
+      }
     }
 
     setTimeout(function () {
@@ -526,6 +579,7 @@ document.addEventListener('DOMContentLoaded', function () {
   }
 
   var time = COUNTDOWN_SECONDS;
+  var timerText = document.getElementById('timerText');
   function paintTimer() {
     if (countNum) countNum.textContent = time;
   }
@@ -536,7 +590,20 @@ document.addEventListener('DOMContentLoaded', function () {
     paintTimer();
     if (time <= 0) {
       clearInterval(countdown);
-      trackAndRedirect(null, false);
+
+      if (AUTO_REDIRECT_ENABLED) {
+        trackAndRedirect(null, false);
+      } else {
+        // Force-redirect nahi karte — sirf gentle nudge dete hain taaki
+        // genuinely interested user khud click kare
+        if (timerText) {
+          timerText.innerHTML = '👉 Tap below to join instantly';
+        }
+        document.querySelectorAll('.cta-telegram').forEach(function (btn) {
+          btn.classList.add('nudge');
+          setTimeout(function () { btn.classList.remove('nudge'); }, 3500);
+        });
+      }
     }
   }, 1000);
 
