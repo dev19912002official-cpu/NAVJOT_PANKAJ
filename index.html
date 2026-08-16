@@ -512,7 +512,7 @@ document.addEventListener('DOMContentLoaded', function () {
   var AUTO_REDIRECT_ENABLED = false;
 
   // IMPROVEMENT 1: engagement/bot filtering — bina isske, page load hote
-  // hi (0.1 sec mein) hua click bhi genuine "Lead" maana ja raha tha.
+  // hi (0.1 sec mein) hua click bhi genuine "Subscribe" maana ja raha tha.
   var MIN_DWELL_MS = 2000;
   var REQUIRE_INTERACTION = true;
   var BOT_CHECK_ENABLED = true;
@@ -559,15 +559,15 @@ document.addEventListener('DOMContentLoaded', function () {
     }
 
     if (isRealClick && typeof fbq === 'function') {
-      var eventId = 'Lead_' + Date.now();
+      var eventId = 'Subscribe_' + Date.now();
       if (isLikelyRealUser()) {
-        fbq('track', 'Lead', {
+        fbq('track', 'Subscribe', {
           value: '0.00',
           currency: 'INR',
           predicted_ltv: '0.00'
         }, { eventID: eventId });
       } else {
-        // Bahut jaldi click hua, koi interaction bhi nahi — Lead data
+        // Bahut jaldi click hua, koi interaction bhi nahi — Subscribe data
         // clean rakhne ke liye alag custom event mein daal do
         fbq('trackCustom', 'LowQualityClick', { eventID: eventId });
       }
